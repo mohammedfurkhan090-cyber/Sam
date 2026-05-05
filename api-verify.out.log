@@ -1,8 +1,0 @@
-
-> @releaseforge/api@0.1.0 dev C:\Users\nawab\Documents\ReleaseForge-Lab\apps\api
-> tsx watch src/index.ts
-
-API listening on http://localhost:4000
-C:\Users\nawab\Documents\ReleaseForge-Lab\apps\api:
- ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @releaseforge/api@0.1.0 dev: `tsx watch src/index.ts`
-Exit status 4294967295
