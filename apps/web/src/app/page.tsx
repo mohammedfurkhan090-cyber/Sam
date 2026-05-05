@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BreakdownPanel } from "@/components/BreakdownPanel";
 import { ExportButton } from "@/components/ExportButton";
 import { HistorySidebar, type ThoughtHistoryItem } from "@/components/HistorySidebar";
@@ -24,9 +24,13 @@ export default function HomePage() {
   const [draftPreview, setDraftPreview] = useState("");
   const [mode, setMode] = useState<ThoughtMode>("structure");
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
-  const [history, setHistory] = useState<ThoughtHistoryItem[]>(() => readHistory());
+  const [history, setHistory] = useState<ThoughtHistoryItem[]>([]);
 
   const { breakdown, rawStreamText, error, isStreaming, startStream, stopStream, loadBreakdown } = useThoughtStream();
+
+  useEffect(() => {
+    setHistory(readHistory());
+  }, []);
 
   const hasBreakdown =
     breakdown.summary.length > 0 ||
@@ -148,4 +152,3 @@ function writeHistory(items: ThoughtHistoryItem[]) {
 
   window.localStorage.setItem(historyStorageKey, JSON.stringify(items));
 }
-

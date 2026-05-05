@@ -76,6 +76,10 @@ export function ThoughtInput({
         className="font-mono text-base leading-relaxed"
       />
 
+      <p className={`mt-1 text-right text-xs ${thought.length > 1800 ? "text-amber-400" : "text-zinc-600"}`}>
+        {thought.length}/2000
+      </p>
+
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-zinc-500">Shortcut: Ctrl/Cmd + Enter</p>
         <div className="flex items-center gap-2">
@@ -92,4 +96,3 @@ export function ThoughtInput({
     </section>
   );
 }
-

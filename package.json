@@ -1,0 +1,10 @@
+{
+  "name": "releaseforge-lab",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-assisted release platform",
+  "scripts": {
+    "dev": "echo \"We will add this soon\"",
+    "build": "echo \"We will add this soon\""
+  }
+}
