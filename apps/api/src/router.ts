@@ -1,6 +1,6 @@
 import { groq } from "./groq.js";
 
-export type ToolName = "unfold" | "speak" | "search" | "none";
+export type ToolName = "unfold" | "search" | "code" | "speak" | "image" | "slides" | "rag" | "none";
 
 export type RouterDecision = {
   tool: ToolName;
@@ -21,11 +21,15 @@ const ROUTER_SYSTEM_PROMPT = [
   "Your task: read one user message and pick the best tool.",
   "Return ONLY valid JSON. No markdown. No code fences. No extra text.",
   "JSON must match this exact shape:",
-  '{"tool":"unfold|speak|search|none","confidence":"high|medium|low","extractedParams":{"thought?":"string","mode?":"structure|poke|expand","text?":"string","query?":"string"},"reasoning":"string"}',
+  '{"tool":"unfold|search|code|speak|image|slides|rag|none","confidence":"high|medium|low","extractedParams":{"thought?":"string","mode?":"structure|poke|expand","text?":"string","query?":"string"},"reasoning":"string"}',
   "Routing rules:",
   "- unfold: user wants to think through, analyze, structure, challenge, or expand an idea, concept, or plan.",
+  "- code: user wants to write, debug, review, or explain code.",
+  "- search: user asks about current events, facts, or wants to look something up.",
+  "- image: user asks to generate, create, or draw an image or picture.",
+  "- slides: user asks to create a presentation, slideshow, or deck.",
+  "- rag: user references their documents, notes, uploads, or asks about something they shared before.",
   '- speak: user says "read this", "say this", "read aloud", or similar.',
-  "- search: user asks for current events/facts or asks to look up/search/find out something.",
   "- none: greetings, thank-yous, meta questions about Sam, or anything that does not fit above.",
   'Important: "Sam" is the product/assistant name, not a human person.',
   "Unfold mode rules:",
@@ -48,7 +52,7 @@ function pickJsonObject(text: string): string {
 }
 
 function isToolName(value: unknown): value is ToolName {
-  return value === "unfold" || value === "speak" || value === "search" || value === "none";
+  return value === "unfold" || value === "search" || value === "code" || value === "speak" || value === "image" || value === "slides" || value === "rag" || value === "none";
 }
 
 function isConfidence(value: unknown): value is RouterDecision["confidence"] {
@@ -103,12 +107,8 @@ function normalizeDecision(parsed: unknown): RouterDecision {
 }
 
 export async function routeMessage(userMessage: string): Promise<RouterDecision> {
-  // Routing is intentionally separated from execution so we can decide first,
-  // then let dedicated handlers execute with clear boundaries and safer control.
   const completion = await groq.chat.completions.create({
     model: ROUTER_MODEL,
-    // We use 0.1 here for deterministic classification; unfold uses 0.2 because
-    // generation benefits from slight creativity while routing should stay stable.
     temperature: 0.1,
     messages: [
       { role: "system", content: ROUTER_SYSTEM_PROMPT },
@@ -118,28 +118,5 @@ export async function routeMessage(userMessage: string): Promise<RouterDecision>
 
   const raw = completion.choices[0]?.message?.content ?? "";
   const parsed = JSON.parse(pickJsonObject(raw));
-  const decision = normalizeDecision(parsed);
-
-  // Downstream can use confidence as a guardrail: low confidence should trigger
-  // a clarification question instead of blindly invoking a possibly wrong tool.
-  return decision;
+  return normalizeDecision(parsed);
 }
-
-/*
-Manual test record for POST /api/v1/route (May 5, 2026):
-
-Input:
-{"message":"I want to think through whether I should learn Rust or Go next"}
-Output:
-{"tool":"unfold","confidence":"high","extractedParams":{"thought":"whether I should learn Rust or Go next","mode":"structure"},"reasoning":"The user is seeking to analyze and structure their thoughts on choosing between two programming languages to learn next."}
-
-Input:
-{"message":"Challenge my idea that React is always better than Vue"}
-Output:
-{"tool":"unfold","confidence":"high","extractedParams":{"thought":"React is always better than Vue","mode":"poke"},"reasoning":"The user is asking to challenge their idea, which indicates a need for pushback or a devil's advocate perspective, best handled by the unfold tool in poke mode."}
-
-Input:
-{"message":"Hey Sam, how are you?"}
-Output:
-{"tool":"none","confidence":"high","extractedParams":{},"reasoning":"The user is asking a greeting question about Sam, which does not fit into any of the other tool categories."}
-*/

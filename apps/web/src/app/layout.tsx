@@ -26,10 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="bg-[#0a0a0a] text-zinc-100 antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <body className="bg-white text-slate-900 antialiased">
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           {children}
-          <Toaster richColors theme="dark" />
+          <Toaster richColors theme="light" />
         </ThemeProvider>
       </body>
     </html>

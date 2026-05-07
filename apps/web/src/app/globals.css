@@ -4,43 +4,22 @@
 
 @layer base {
   :root {
-    --sam-bg: #0a0a0a;
-    --sam-sidebar: #0f0f0f;
-    --sam-surface: #141414;
-    --sam-card: #161616;
-    --sam-prompt-bg: rgba(20, 20, 20, 0.95);
-    --sam-border: rgba(255, 255, 255, 0.06);
-    --sam-border-hover: rgba(255, 255, 255, 0.1);
-    --sam-accent: #7c6fe0;
-    --sam-text-primary: #f0f0f0;
-    --sam-text-secondary: #a0a0a0;
-    --sam-text-muted: #606060;
-    --sam-text-faint: #383838;
-  }
-
-  .light {
-    --sam-bg: #f5f5f5;
-    --sam-sidebar: #efefef;
-    --sam-surface: #e8e8e8;
+    --sam-bg: #ffffff;
+    --sam-sidebar: #f8fafc;
     --sam-card: #ffffff;
-    --sam-prompt-bg: rgba(255, 255, 255, 0.95);
-    --sam-border: rgba(0, 0, 0, 0.08);
-    --sam-border-hover: rgba(0, 0, 0, 0.12);
-    --sam-accent: #7c6fe0;
-    --sam-text-primary: #111111;
-    --sam-text-secondary: #555555;
-    --sam-text-muted: #888888;
-    --sam-text-faint: #bbbbbb;
-  }
-
-  * {
-    box-sizing: border-box;
+    --sam-border: #e2e8f0;
+    --sam-border-hover: #cbd5e1;
+    --sam-accent: #334155;
+    --sam-text-primary: #0f172a;
+    --sam-text-secondary: #475569;
+    --sam-text-muted: #64748b;
+    --sam-text-faint: #94a3b8;
   }
 
   html, body {
     background-color: var(--sam-bg);
     color: var(--sam-text-primary);
-    height: 100%;
+    min-height: 100vh;
   }
 }
 
