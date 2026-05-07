@@ -21,6 +21,16 @@ type UnfoldRequest = {
   mode: UnfoldMode;
 };
 
+type ChatHistoryItem = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type ChatRequest = {
+  message: string;
+  history?: ChatHistoryItem[];
+};
+
 function sendEvent(res: Response, type: string, payload: unknown) {
   res.write(`data: ${JSON.stringify({ type, payload })}\n\n`);
 }
@@ -221,7 +231,7 @@ app.post("/api/v1/route", async (req, res) => {
 });
 
 app.post("/api/v1/chat", async (req, res) => {
-  const { message } = req.body as { message?: string };
+  const { message, history } = req.body as ChatRequest;
 
   if (!message?.trim()) {
     return res.status(400).json({ error: "message is required" });
@@ -257,14 +267,17 @@ app.post("/api/v1/chat", async (req, res) => {
       const thought = decision.extractedParams.thought ?? trimmedMessage;
       const mode = decision.extractedParams.mode ?? "structure";
 
+      const conversationMessages = [
+        { role: "system", content: getUnfoldSystemPrompt(mode) },
+        ...(history ?? []).slice(-6), // last 6 turns max to stay within token limits
+        { role: "user", content: thought },
+      ];
+
       const stream = await groq.chat.completions.create({
         model: groqModel,
         temperature: 0.2,
         stream: true,
-        messages: [
-          { role: "system", content: getUnfoldSystemPrompt(mode) },
-          { role: "user", content: thought },
-        ],
+        messages: conversationMessages as any,
       });
 
       for await (const chunk of stream) {
@@ -286,18 +299,21 @@ app.post("/api/v1/chat", async (req, res) => {
     if (decision.tool === "none") {
       // We stream even for "none" so the frontend can handle one consistent
       // SSE pattern for every chat message instead of branching to JSON logic.
+      const conversationMessages = [
+        {
+          role: "system",
+          content:
+            "You are Sam, a sharp AI thinking partner built to help people think clearer and act faster. Respond naturally to greetings and questions about what you are. Keep replies under 3 sentences. Never say you don't have feelings — just stay focused on being useful.",
+        },
+        ...(history ?? []).slice(-6), // last 6 turns max to stay within token limits
+        { role: "user", content: trimmedMessage },
+      ];
+
       const stream = await groq.chat.completions.create({
         model: groqModel,
         temperature: 0.2,
         stream: true,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are Sam, a sharp AI thinking partner built to help people think clearer and act faster. Respond naturally to greetings and questions about what you are. Keep replies under 3 sentences. Never say you don't have feelings — just stay focused on being useful.",
-          },
-          { role: "user", content: trimmedMessage },
-        ],
+        messages: conversationMessages as any,
       });
 
       for await (const chunk of stream) {

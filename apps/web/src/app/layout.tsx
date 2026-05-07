@@ -1,6 +1,7 @@
 ﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Unfold - Real-Time Thinking Partner",
-  description: "Stream structured thinking output live from Groq via SSE.",
+  title: "Sam",
+  description: "Your personal AI thinking partner",
 };
 
 export default function RootLayout({
@@ -26,8 +27,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="bg-[#0a0a0a] text-zinc-100 antialiased">
-        {children}
-        <Toaster richColors theme="dark" />
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          {children}
+          <Toaster richColors theme="dark" />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -14,6 +14,15 @@ export type SamChatOutput = {
   chat?: string;
 };
 
+type SamMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  tool: ToolName | null;
+  output: SamChatOutput;
+  timestamp: Date;
+};
+
 type ChatEvent =
   | { type: "routing"; payload: { tool: ToolName } }
   | { type: "token"; payload: { text?: string } }
@@ -25,9 +34,11 @@ type ChatEvent =
 const API_URL = "http://localhost:4000/api/v1/chat";
 
 export function useSamChat() {
+  const [messages, setMessages] = useState<SamMessage[]>([]);
   const [output, setOutput] = useState<SamChatOutput>({});
   const [streamingState, setStreamingState] = useState<StreamingState>("idle");
   const [currentTool, setCurrentTool] = useState<ToolName | null>(null);
+  const clearMessages = useCallback(() => setMessages([]), []);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -37,6 +48,22 @@ export function useSamChat() {
       setError("Message cannot be empty");
       return null;
     }
+
+    const userMessage: SamMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: trimmed,
+      tool: null,
+      output: {},
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+
+    const history = messages.slice(-6).map((m) => ({
+      role: m.role,
+      content: m.role === "user" ? m.content : m.output.chat ?? m.output.summary ?? "",
+    }));
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -51,12 +78,13 @@ export function useSamChat() {
     let chatText = "";
     let latestOutput: SamChatOutput = {};
     let sawDone = false;
+    let resolvedTool: ToolName | null = null;
 
     try {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, history }),
         signal: controller.signal,
       });
 
@@ -97,12 +125,15 @@ export function useSamChat() {
         }
 
         if (event.type === "routing") {
-          const tool = event.payload?.tool;
+          const payload = event.payload as { tool?: ToolName };
+          const tool = payload.tool;
           if (tool === "unfold" || tool === "search" || tool === "none") {
+            resolvedTool = tool;
             setCurrentTool(tool);
           }
         } else if (event.type === "token") {
-          const token = event.payload?.text ?? "";
+          const payload = event.payload as { text?: string };
+          const token = payload.text ?? "";
           thinkingText += token;
           const partial = parsePartialJson(thinkingText);
           latestOutput = {
@@ -115,13 +146,15 @@ export function useSamChat() {
           setOutput(latestOutput);
           setStreamingState("streaming");
         } else if (event.type === "reply") {
-          const token = event.payload?.text ?? "";
+          const payload = event.payload as { text?: string };
+          const token = payload.text ?? "";
           chatText += token;
           latestOutput = { ...latestOutput, chat: chatText };
           setOutput(latestOutput);
           setStreamingState("streaming");
         } else if (event.type === "error") {
-          setError(event.payload?.message ?? "Streaming failed");
+          const payload = event.payload as { message?: string };
+          setError(payload.message ?? "Streaming failed");
         } else if (event.type === "done") {
           sawDone = true;
           setStreamingState("done");
@@ -149,6 +182,17 @@ export function useSamChat() {
 
       if (sawDone) {
         setStreamingState("done");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: latestOutput.chat ?? latestOutput.summary ?? "",
+            tool: resolvedTool ?? "none",
+            output: latestOutput,
+            timestamp: new Date(),
+          },
+        ]);
         setTimeout(() => setStreamingState("idle"), 500);
       } else {
         setStreamingState("idle");
@@ -169,13 +213,15 @@ export function useSamChat() {
         abortRef.current = null;
       }
     }
-  }, []);
+  }, [messages]);
 
   return {
     submit,
+    messages,
     output,
     streamingState,
     currentTool,
     error,
+    clearMessages,
   };
 }

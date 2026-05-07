@@ -18,8 +18,9 @@ type StreamingState = "idle" | "routing" | "streaming" | "done"
 
 interface Message {
   id: string
-  input: string
-  tool: ToolName
+  role: "user" | "assistant"
+  content: string
+  tool: ToolName | null
   output: {
     summary?: string
     keyPoints?: string[]
@@ -207,14 +208,14 @@ function HistorySidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 sam-scrollbar">
-          {messages.length === 0 ? (
+          {messages.filter((msg) => msg.role === "user").length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-4">
               <MessageSquare className="w-8 h-8 text-[var(--sam-text-faint)] mb-3" />
               <p className="text-[var(--sam-text-faint)] text-sm">No conversations yet</p>
             </div>
           ) : (
             <ul className="space-y-1">
-              {messages.map((msg) => (
+              {messages.filter((msg) => msg.role === "user").map((msg) => (
                 <motion.li key={msg.id} layout>
                   <button
                     onClick={() => { onSelect(msg.id); onClose(); }}
@@ -225,7 +226,7 @@ function HistorySidebar({
                     }`}
                   >
                     <p className="text-[var(--sam-text-primary)] text-sm truncate mb-1">
-                      {msg.input.substring(0, 40)}{msg.input.length > 40 && "..."}
+                      {msg.content.substring(0, 40)}{msg.content.length > 40 && "..."}
                     </p>
                     <div className="flex items-center gap-2">
                       {msg.assistantMode && (
@@ -555,22 +556,33 @@ function OutputCard({
 function ThinkingOutput({ output, isStreaming }: { output: Message["output"]; isStreaming: boolean }) {
   const [playingCard, setPlayingCard] = useState<string | null>(null)
 
-  const cards = [
-    { key: "summary", label: "Summary", icon: Sparkles, content: output.summary },
-    { key: "keyPoints", label: "Key Points", icon: Zap, content: output.keyPoints },
-    { key: "blindSpots", label: "Blind Spots", icon: Brain, content: output.blindSpots },
-    { key: "questions", label: "Questions", icon: MessageSquare, content: output.questions }
-  ]
+  const hasSummary = Boolean(output.summary)
+  const hasKeyPoints = Boolean(output.keyPoints?.length)
+  const hasBlindSpots = Boolean(output.blindSpots?.length)
+  const hasQuestions = Boolean(output.questions?.length)
+  const hasContent = hasSummary || hasKeyPoints || hasBlindSpots || hasQuestions
+
+  if (isStreaming && !hasContent) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+        {[...Array(4)].map((_, i) => (
+          <div key={i}
+            className="h-40 rounded-2xl border border-[var(--sam-border)] bg-[var(--sam-card)] animate-pulse"
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
-      {cards.map((card, index) => (
-        <OutputCard key={card.key} title={card.label} icon={card.icon} delay={index * 0.1}>
+      {hasSummary && (
+        <OutputCard title="Summary" icon={Sparkles} delay={0}>
           <div className="flex justify-end mb-2">
             <motion.button
-              onClick={() => setPlayingCard(playingCard === card.key ? null : card.key)}
+              onClick={() => setPlayingCard(playingCard === "summary" ? null : "summary")}
               className={`p-1.5 rounded-lg transition-all ${
-                playingCard === card.key 
+                playingCard === "summary" 
                   ? "text-[var(--sam-accent)] bg-[var(--sam-accent)]/10" 
                   : "text-[var(--sam-text-muted)] hover:bg-[var(--sam-surface)]"
               }`}
@@ -581,36 +593,124 @@ function ThinkingOutput({ output, isStreaming }: { output: Message["output"]; is
             </motion.button>
           </div>
           <div className="text-[var(--sam-text-primary)] text-sm leading-relaxed">
-            {Array.isArray(card.content) ? (
-              <ul className="space-y-2">
-                {card.content.map((item, i) => (
-                  <motion.li
-                    key={i}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex items-start gap-2"
-                  >
-                    <span className="text-[var(--sam-accent)] mt-1">•</span>
-                    <span>{item}</span>
-                  </motion.li>
-                ))}
-              </ul>
-            ) : (
-              <p>
-                {card.content}
-                {isStreaming && card.key === "summary" && (
-                  <motion.span 
-                    className="inline-block w-0.5 h-4 bg-[var(--sam-accent)] ml-1"
-                    animate={{ opacity: [1, 0, 1] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                  />
-                )}
-              </p>
-            )}
+            <p>
+              {output.summary}
+              {isStreaming && (
+                <motion.span
+                  className="inline-block w-0.5 h-4 bg-[var(--sam-accent)] ml-1"
+                  animate={{ opacity: [1, 0, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+              )}
+            </p>
           </div>
         </OutputCard>
-      ))}
+      )}
+
+      {hasKeyPoints && (
+        <OutputCard title="Key Points" icon={Zap} delay={0.1}>
+          <div className="flex justify-end mb-2">
+            <motion.button
+              onClick={() => setPlayingCard(playingCard === "keyPoints" ? null : "keyPoints")}
+              className={`p-1.5 rounded-lg transition-all ${
+                playingCard === "keyPoints" 
+                  ? "text-[var(--sam-accent)] bg-[var(--sam-accent)]/10" 
+                  : "text-[var(--sam-text-muted)] hover:bg-[var(--sam-surface)]"
+              }`}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Volume2 className="w-4 h-4" />
+            </motion.button>
+          </div>
+          <div className="text-[var(--sam-text-primary)] text-sm leading-relaxed">
+            <ul className="space-y-2">
+              {output.keyPoints?.map((item, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="flex items-start gap-2"
+                >
+                  <span className="text-[var(--sam-accent)] mt-1">•</span>
+                  <span>{item}</span>
+                </motion.li>
+              ))}
+            </ul>
+          </div>
+        </OutputCard>
+      )}
+
+      {hasBlindSpots && (
+        <OutputCard title="Blind Spots" icon={Brain} delay={0.2}>
+          <div className="flex justify-end mb-2">
+            <motion.button
+              onClick={() => setPlayingCard(playingCard === "blindSpots" ? null : "blindSpots")}
+              className={`p-1.5 rounded-lg transition-all ${
+                playingCard === "blindSpots" 
+                  ? "text-[var(--sam-accent)] bg-[var(--sam-accent)]/10" 
+                  : "text-[var(--sam-text-muted)] hover:bg-[var(--sam-surface)]"
+              }`}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Volume2 className="w-4 h-4" />
+            </motion.button>
+          </div>
+          <div className="text-[var(--sam-text-primary)] text-sm leading-relaxed">
+            <ul className="space-y-2">
+              {output.blindSpots?.map((item, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="flex items-start gap-2"
+                >
+                  <span className="text-[var(--sam-accent)] mt-1">•</span>
+                  <span>{item}</span>
+                </motion.li>
+              ))}
+            </ul>
+          </div>
+        </OutputCard>
+      )}
+
+      {hasQuestions && (
+        <OutputCard title="Questions" icon={MessageSquare} delay={0.3}>
+          <div className="flex justify-end mb-2">
+            <motion.button
+              onClick={() => setPlayingCard(playingCard === "questions" ? null : "questions")}
+              className={`p-1.5 rounded-lg transition-all ${
+                playingCard === "questions" 
+                  ? "text-[var(--sam-accent)] bg-[var(--sam-accent)]/10" 
+                  : "text-[var(--sam-text-muted)] hover:bg-[var(--sam-surface)]"
+              }`}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Volume2 className="w-4 h-4" />
+            </motion.button>
+          </div>
+          <div className="text-[var(--sam-text-primary)] text-sm leading-relaxed">
+            <ul className="space-y-2">
+              {output.questions?.map((item, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="flex items-start gap-2"
+                >
+                  <span className="text-[var(--sam-accent)] mt-1">•</span>
+                  <span>{item}</span>
+                </motion.li>
+              ))}
+            </ul>
+          </div>
+        </OutputCard>
+      )}
     </div>
   )
 }
@@ -702,6 +802,16 @@ function StatusIndicator({ state, tool }: { state: StreamingState; tool: ToolNam
   )
 }
 
+function RoutingPill({ tool }: { tool: ToolName | null }) {
+  const label = tool === "unfold" ? "Thinking" : tool === "none" ? "Responding" : "Routing"
+  return (
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--sam-surface)] border border-[var(--sam-border)] text-[var(--sam-text-secondary)] text-xs">
+      <Zap className="w-3.5 h-3.5 text-[var(--sam-accent)]" />
+      <span>{label}</span>
+    </div>
+  )
+}
+
 // Empty State
 function EmptyState() {
   return (
@@ -736,55 +846,49 @@ function EmptyState() {
 
 // Main Page
 export default function SamPage() {
-  const { submit, output, streamingState, currentTool } = useSamChat()
-  const [messages, setMessages] = useState<Message[]>([])
+  const { submit, messages, output: liveOutput, streamingState, currentTool, clearMessages } = useSamChat()
   const [inputValue, setInputValue] = useState("")
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedMode, setSelectedMode] = useState<AssistantMode>("daily")
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const handleSubmit = async () => {
     if (!inputValue.trim() || streamingState !== "idle") return
 
-    const newMessage: Message = {
-      id: generateId(),
-      input: inputValue,
-      tool: "unfold",
-      output: {},
-      timestamp: new Date(),
-      mode: "structure",
-      assistantMode: selectedMode
-    }
-
-    setMessages(prev => [newMessage, ...prev])
-    setActiveMessageId(newMessage.id)
     setInputValue("")
-
-    const finalOutput = await submit(inputValue)
-    if (!finalOutput) return
-
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === newMessage.id ? { ...msg, output: finalOutput } : msg
-      )
-    )
+    await submit(inputValue)
   }
 
-  const activeMessage = messages.find(m => m.id === activeMessageId)
-  const displayOutput = streamingState === "streaming" || streamingState === "routing" 
-    ? output 
-    : activeMessage?.output
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, streamingState])
 
   return (
-    <div className="h-screen flex overflow-hidden">
-      <HistorySidebar
-        messages={messages}
-        activeId={activeMessageId}
-        onSelect={setActiveMessageId}
-        onClear={() => { setMessages([]); setActiveMessageId(null); }}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+    <div className="h-screen flex overflow-hidden bg-[var(--sam-bg)]">
+      {/* Sidebar - always visible on desktop */}
+      <div className="hidden lg:flex">
+        <HistorySidebar
+          messages={messages}
+          activeId={activeMessageId}
+          onSelect={setActiveMessageId}
+          onClear={() => { clearMessages(); setActiveMessageId(null); }}
+          isOpen={true}
+          onClose={() => {}}
+        />
+      </div>
+
+      {/* Mobile sidebar */}
+      <div className="lg:hidden">
+        <HistorySidebar
+          messages={messages}
+          activeId={activeMessageId}
+          onSelect={setActiveMessageId}
+          onClear={() => { clearMessages(); setActiveMessageId(null); }}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+      </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Minimal Header */}
@@ -810,41 +914,50 @@ export default function SamPage() {
         </header>
 
         {/* Main content - clean, no background decorations */}
-        <main className="flex-1 overflow-y-auto sam-scrollbar p-4 md:p-6">
-          {streamingState === "idle" && !activeMessage ? (
+        <main className="flex-1 overflow-y-auto sam-scrollbar p-4 md:p-6 bg-[var(--sam-bg)]">
+          {messages.length === 0 ? (
             <EmptyState />
           ) : (
             <div className="space-y-6">
-              {/* Routing indicator */}
-              <AnimatePresence>
-                {streamingState === "routing" && currentTool && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex justify-center"
-                  >
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--sam-card)] border border-[var(--sam-border)]">
-                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-                        <Zap className="w-4 h-4 text-[var(--sam-accent)]" />
+              <div className="space-y-6">
+                {messages.map((msg) => (
+                  <div key={msg.id} className="space-y-3">
+                    {msg.role === "user" && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex justify-end"
+                      >
+                        <div className="max-w-xl px-4 py-3 rounded-2xl rounded-br-sm bg-[var(--sam-accent)]/15 border border-[var(--sam-accent)]/20 text-[var(--sam-text-primary)] text-sm">
+                          {msg.content}
+                        </div>
                       </motion.div>
-                      <span className="text-sm text-[var(--sam-text-secondary)]">Routing...</span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    )}
 
-              {(activeMessage?.tool === "unfold" || currentTool === "unfold") && displayOutput && (
-                <ThinkingOutput output={displayOutput} isStreaming={streamingState === "streaming"} />
+                    {msg.role === "assistant" && (
+                      <div>
+                        {msg.tool === "unfold" && <ThinkingOutput output={msg.output} isStreaming={false} />}
+                        {msg.tool === "none" && msg.output.chat && (
+                          <ChatBubble content={msg.output.chat} isStreaming={false} />
+                        )}
+                        {msg.tool === "search" && <SearchOutput isLoading={false} />}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {(streamingState === "streaming" || streamingState === "routing") && (
+                <div className="space-y-4">
+                  {streamingState === "routing" && <RoutingPill tool={currentTool} />}
+                  {currentTool === "unfold" && <ThinkingOutput output={liveOutput} isStreaming={true} />}
+                  {currentTool === "none" && liveOutput.chat && (
+                    <ChatBubble content={liveOutput.chat} isStreaming={true} />
+                  )}
+                </div>
               )}
 
-              {(activeMessage?.tool === "search" || currentTool === "search") && (
-                <SearchOutput isLoading={streamingState === "streaming" || streamingState === "routing"} />
-              )}
-
-              {(activeMessage?.tool === "none" || currentTool === "none") && displayOutput?.chat && (
-                <ChatBubble content={displayOutput.chat} isStreaming={streamingState === "streaming"} />
-              )}
+              <div ref={bottomRef} />
             </div>
           )}
         </main>
