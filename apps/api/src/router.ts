@@ -1,6 +1,6 @@
 import { groq } from "./groq.js";
 
-export type ToolName = "unfold" | "search" | "code" | "speak" | "image" | "slides" | "rag" | "none";
+export type ToolName = "unfold" | "search" | "code" | "speak" | "image" | "slides" | "rag" | "agent" | "none";
 
 export type RouterDecision = {
   tool: ToolName;
@@ -21,7 +21,7 @@ const ROUTER_SYSTEM_PROMPT = [
   "Your task: read one user message and pick the best tool.",
   "Return ONLY valid JSON. No markdown. No code fences. No extra text.",
   "JSON must match this exact shape:",
-  '{"tool":"unfold|search|code|speak|image|slides|rag|none","confidence":"high|medium|low","extractedParams":{"thought?":"string","mode?":"structure|poke|expand","text?":"string","query?":"string"},"reasoning":"string"}',
+  '{"tool":"unfold|search|code|speak|image|slides|rag|agent|none","confidence":"high|medium|low","extractedParams":{"thought?":"string","mode?":"structure|poke|expand","text?":"string","query?":"string"},"reasoning":"string"}',
   "Routing rules:",
   "- unfold: user wants to think through, analyze, structure, challenge, or expand an idea, concept, or plan.",
   "- code: user wants to write, debug, review, or explain code.",
@@ -29,8 +29,9 @@ const ROUTER_SYSTEM_PROMPT = [
   "- image: user asks to generate, create, or draw an image or picture.",
   "- slides: user asks to create a presentation, slideshow, or deck.",
   "- rag: user references their documents, notes, uploads, or asks about something they shared before.",
+  "- agent: ONLY use when the user explicitly asks to research AND produce a combined output, e.g. 'research X then summarize it', 'find 3 sources and compare them'. Do NOT use for conversational follow-ups, simple questions, or anything a single tool can handle.",
   '- speak: user says "read this", "say this", "read aloud", or similar.',
-  "- none: greetings, thank-yous, meta questions about Sam, or anything that does not fit above.",
+  "- none: greetings, thank-yous, short follow-up questions, conversational replies, meta questions about Sam, or anything that does not clearly fit a specific tool above. When in doubt, use none.",
   'Important: "Sam" is the product/assistant name, not a human person.',
   "Unfold mode rules:",
   "- structure: default for organizing or clarifying a thought.",
@@ -52,7 +53,7 @@ function pickJsonObject(text: string): string {
 }
 
 function isToolName(value: unknown): value is ToolName {
-  return value === "unfold" || value === "search" || value === "code" || value === "speak" || value === "image" || value === "slides" || value === "rag" || value === "none";
+  return value === "unfold" || value === "search" || value === "code" || value === "speak" || value === "image" || value === "slides" || value === "rag" || value === "agent" || value === "none";
 }
 
 function isConfidence(value: unknown): value is RouterDecision["confidence"] {
@@ -106,7 +107,10 @@ function normalizeDecision(parsed: unknown): RouterDecision {
   };
 }
 
-export async function routeMessage(userMessage: string): Promise<RouterDecision> {
+export async function routeMessage(
+  userMessage: string,
+  disabledTools?: string[]
+): Promise<RouterDecision> {
   const completion = await groq.chat.completions.create({
     model: ROUTER_MODEL,
     temperature: 0.1,
@@ -117,6 +121,16 @@ export async function routeMessage(userMessage: string): Promise<RouterDecision>
   });
 
   const raw = completion.choices[0]?.message?.content ?? "";
-  const parsed = JSON.parse(pickJsonObject(raw));
-  return normalizeDecision(parsed);
+  const cleaned = raw.replace(/```json|```/gi, "").trim();
+
+  try {
+    const parsed = JSON.parse(pickJsonObject(cleaned));
+    const decision = normalizeDecision(parsed);
+    if (disabledTools?.includes(decision.tool)) {
+      decision.tool = "none";
+    }
+    return decision;
+  } catch {
+    return { tool: "none", confidence: "high", reasoning: "Fallback to none", extractedParams: {} } as RouterDecision;
+  }
 }

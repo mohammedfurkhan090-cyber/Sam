@@ -1,56 +1,56 @@
 import { type Request, type Response } from "express";
 
-const FAL_URL = "https://fal.run/fal-ai/flux/schnell";
+const STABILITY_URL = "https://api.stability.ai/v2beta/stable-image/generate/core";
 
-type FalResponse = {
-  images?: Array<{ url?: string }>;
-};
+export async function generateImage(prompt: string): Promise<{
+  tool: string;
+  output: { imageUrl: string | null; chat: string | null };
+}> {
+  try {
+    const apiKey = process.env.STABILITY_API_KEY;
+    if (!apiKey) throw new Error("STABILITY_API_KEY is not configured");
 
-export async function generateImage(prompt: string): Promise<string> {
-  const falKey = process.env.FAL_KEY;
-  if (!falKey) {
-    throw new Error("FAL_KEY is not configured");
+    const form = new FormData();
+    form.append("prompt", prompt);
+    form.append("output_format", "jpeg");
+    form.append("aspect_ratio", "1:1");
+
+    const response = await fetch(STABILITY_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "image/*",
+      },
+      body: form,
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Stability AI returned ${response.status}: ${body}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+    return { tool: "image", output: { imageUrl: dataUrl, chat: null } };
+  } catch (err: any) {
+    return {
+      tool: "image",
+      output: {
+        imageUrl: null,
+        chat: `Image generation failed: ${err?.message ?? "unknown error"}`,
+      },
+    };
   }
-
-  const response = await fetch(FAL_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Key ${falKey}`,
-    },
-    body: JSON.stringify({
-      prompt,
-      image_size: "landscape_16_9",
-      num_images: 1,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`FAL request failed with status ${response.status}`);
-  }
-
-  const data = (await response.json()) as FalResponse;
-  const imageUrl = data.images?.[0]?.url;
-  if (!imageUrl) {
-    throw new Error("FAL response missing image URL");
-  }
-
-  return imageUrl;
 }
 
 export async function handleImage(req: Request, res: Response): Promise<Response | void> {
   const { prompt } = req.body as { prompt?: string };
   const trimmedPrompt = prompt?.trim();
-
-  if (!trimmedPrompt) {
-    return res.status(400).json({ error: "prompt is required" });
-  }
-
-  try {
-    const url = await generateImage(trimmedPrompt);
-    return res.json({ url });
-  } catch (error) {
-    console.error("image tool error:", error);
-    return res.status(500).json({ error: "Image generation failed" });
-  }
+  if (!trimmedPrompt) return res.status(400).json({ error: "prompt is required" });
+  const result = await generateImage(trimmedPrompt);
+  if (result.output.imageUrl) return res.json({ url: result.output.imageUrl });
+  return res.status(500).json({ error: result.output.chat });
 }

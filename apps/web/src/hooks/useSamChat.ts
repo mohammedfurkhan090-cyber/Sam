@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { parsePartialJson } from "@/lib/parsePartialJson";
 
-type ToolName = "unfold" | "search" | "none";
+type ToolName = "unfold" | "search" | "code" | "image" | "slides" | "speak" | "rag" | "agent" | "none";
 type StreamingState = "idle" | "routing" | "streaming" | "done";
 
 export type SamChatOutput = {
@@ -12,19 +12,25 @@ export type SamChatOutput = {
   blindSpots?: string[];
   questions?: string[];
   chat?: string;
+  codeText?: string;
+  imageUrl?: string;
+  slidesUrl?: string;
+  agentSteps?: string[];
 };
 
 type SamMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  tool: ToolName | null;
+  tool: "unfold" | "search" | "code" | "image" | "slides" | "speak" | "rag" | "agent" | "none" | null;
   output: SamChatOutput;
   timestamp: Date;
 };
 
 type ChatEvent =
-  | { type: "routing"; payload: { tool: ToolName } }
+  | { type: "image"; payload: { url: string } }
+  | { type: "slides"; payload: { url: string } }
+  | { type: "routing"; payload: { tool: string } }
   | { type: "token"; payload: { text?: string } }
   | { type: "reply"; payload: { text?: string } }
   | { type: "error"; payload: { message?: string } }
@@ -42,7 +48,7 @@ export function useSamChat() {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const submit = useCallback(async (message: string): Promise<SamChatOutput | null> => {
+  const submit = useCallback(async (message: string, activeTools?: Record<string, boolean>): Promise<SamChatOutput | null> => {
     const trimmed = message.trim();
     if (!trimmed) {
       setError("Message cannot be empty");
@@ -84,7 +90,7 @@ export function useSamChat() {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history }),
+        body: JSON.stringify({ message: trimmed, history, activeTools }),
         signal: controller.signal,
       });
 
@@ -125,36 +131,72 @@ export function useSamChat() {
         }
 
         if (event.type === "routing") {
-          const payload = event.payload as { tool?: ToolName };
+          const payload = event.payload as { tool?: string };
           const tool = payload.tool;
-          if (tool === "unfold" || tool === "search" || tool === "none") {
-            resolvedTool = tool;
-            setCurrentTool(tool);
+          if (tool) {
+            resolvedTool = tool as ToolName;
+            setCurrentTool(tool as ToolName);
           }
         } else if (event.type === "token") {
           const payload = event.payload as { text?: string };
           const token = payload.text ?? "";
-          thinkingText += token;
-          const partial = parsePartialJson(thinkingText);
-          latestOutput = {
-            ...latestOutput,
-            summary: partial.summary ?? latestOutput.summary,
-            keyPoints: partial.keyPoints ?? latestOutput.keyPoints,
-            blindSpots: partial.blindSpots ?? latestOutput.blindSpots,
-            questions: partial.questions ?? latestOutput.questions,
-          };
+          if (resolvedTool === "unfold") {
+            thinkingText += token;
+            try {
+              const partial = parsePartialJson(thinkingText);
+              latestOutput = {
+                ...latestOutput,
+                summary: partial.summary ?? latestOutput.summary,
+                keyPoints: partial.keyPoints ?? latestOutput.keyPoints,
+                blindSpots: partial.blindSpots ?? latestOutput.blindSpots,
+                questions: partial.questions ?? latestOutput.questions,
+              };
+            } catch {
+              return;
+            }
+          } else {
+            chatText += token;
+            latestOutput = { ...latestOutput, chat: chatText };
+          }
           setOutput(latestOutput);
           setStreamingState("streaming");
         } else if (event.type === "reply") {
           const payload = event.payload as { text?: string };
           const token = payload.text ?? "";
           chatText += token;
-          latestOutput = { ...latestOutput, chat: chatText };
+          if (resolvedTool === "agent") {
+            const agentSteps = [...(latestOutput.agentSteps ?? []), token];
+            latestOutput = { ...latestOutput, agentSteps, chat: agentSteps[agentSteps.length - 1] ?? chatText };
+          } else {
+            latestOutput = { ...latestOutput, chat: chatText };
+          }
+          setOutput(latestOutput);
+          setStreamingState("streaming");
+        } else if (event.type === "image") {
+          const payload = event.payload as { url?: string };
+          latestOutput = { ...latestOutput, imageUrl: payload.url };
+          setOutput({ ...latestOutput });
+          setStreamingState("streaming");
+        } else if (event.type === "slides") {
+          const payload = event.payload as { url?: string };
+          latestOutput = { ...latestOutput, slidesUrl: payload.url };
           setOutput(latestOutput);
           setStreamingState("streaming");
         } else if (event.type === "error") {
-          const payload = event.payload as { message?: string };
-          setError(payload.message ?? "Streaming failed");
+          const payload = event.payload as { tool?: string; output?: { chat?: string } };
+          setError(payload.output?.chat ?? "Streaming failed");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: payload.output?.chat ?? "An error occurred.",
+              tool: (payload.tool as ToolName) ?? "none",
+              output: payload.output ?? {},
+              timestamp: new Date(),
+            },
+          ]);
+          setStreamingState("idle");
         } else if (event.type === "done") {
           sawDone = true;
           setStreamingState("done");

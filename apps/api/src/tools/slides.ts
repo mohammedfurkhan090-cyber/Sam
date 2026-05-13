@@ -37,14 +37,13 @@ export async function generateSlides(topic: string): Promise<string> {
     },
     body: JSON.stringify({
       userInput: topic,
-      mode: "async",
-      responseLanguage: "en",
-      resolution: "2K",
+      themeId: "default",
     }),
   });
 
   if (!generateResponse.ok) {
-    throw new Error(`Slides generate request failed with status ${generateResponse.status}`);
+    const body = await generateResponse.text().catch(() => "")
+    throw new Error(`Slides generate request failed with status ${generateResponse.status}: ${body}`)
   }
 
   const generateData = (await generateResponse.json()) as SlidesGenerateResponse;

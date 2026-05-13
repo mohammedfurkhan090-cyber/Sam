@@ -25,11 +25,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="bg-white text-slate-900 antialiased">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="antialiased" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           {children}
-          <Toaster richColors theme="light" />
+          <Toaster richColors theme="dark" />
         </ThemeProvider>
       </body>
     </html>

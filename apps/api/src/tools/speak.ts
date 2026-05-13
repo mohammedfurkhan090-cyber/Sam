@@ -3,12 +3,15 @@ import { type Request, type Response } from "express";
 
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 
+// Sarah — warm, confident young adult female voice
+const DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL";
+
 export async function handleSpeak(req: Request, res: Response): Promise<Response | void> {
   if (!elevenLabsApiKey) {
     return res.status(503).json({ error: "ElevenLabs not configured" });
   }
 
-  const { text, voiceId = "JBFqnCBsd6RMkjVDRZzb" } = req.body as {
+  const { text, voiceId = DEFAULT_VOICE_ID } = req.body as {
     text?: string;
     voiceId?: string;
   };
