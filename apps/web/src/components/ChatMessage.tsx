@@ -102,15 +102,106 @@ export default function ChatMessage({
   };
 
   const renderMarkdown = (text: string): React.ReactNode => {
-    return text.split("\n").map((line, i) => {
-      const parts = line.split(/\*\*(.*?)\*\*/g);
-      const rendered = parts.map((part, j) =>
-        j % 2 === 1
-          ? <strong key={j} style={{ color: "var(--sam-text-primary)", fontWeight: 600 }}>{part}</strong>
-          : <span key={j}>{part}</span>
-      );
-      return <p key={i} style={{ margin: "4px 0", lineHeight: 1.7 }}>{rendered}</p>;
-    });
+    const lines = text.split("\n");
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    const renderInline = (line: string): React.ReactNode => {
+      const parts = line.split(/(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))/g);
+      return parts.map((part, j) => {
+        if (part.startsWith("**") && part.endsWith("**"))
+          return <strong key={j} style={{ color: "var(--sam-text-primary)", fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+        if (part.startsWith("`") && part.endsWith("`"))
+          return <code key={j} style={{ background: "var(--sam-surface)", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "JetBrains Mono, monospace", color: "#4ADE80" }}>{part.slice(1, -1)}</code>;
+        const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+        if (linkMatch)
+          return <a key={j} href={linkMatch[2]} target="_blank" rel="noreferrer" style={{ color: "var(--sam-accent)", textDecoration: "underline" }}>{linkMatch[1]}</a>;
+        return <span key={j}>{part}</span>;
+      });
+    };
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      if (!line.trim()) {
+        elements.push(<div key={i} style={{ height: 8 }} />);
+        i++;
+        continue;
+      }
+
+      if (line.startsWith("### ")) {
+        elements.push(<h3 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 13, fontWeight: 700, margin: "14px 0 6px", letterSpacing: "0.01em" }}>{renderInline(line.slice(4))}</h3>);
+        i++;
+        continue;
+      }
+
+      if (line.startsWith("## ")) {
+        elements.push(<h2 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 15, fontWeight: 700, margin: "16px 0 8px", letterSpacing: "-0.01em" }}>{renderInline(line.slice(3))}</h2>);
+        i++;
+        continue;
+      }
+
+      if (line.startsWith("# ")) {
+        elements.push(<h1 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 17, fontWeight: 700, margin: "18px 0 10px" }}>{renderInline(line.slice(2))}</h1>);
+        i++;
+        continue;
+      }
+
+      if (line.startsWith("- ") || line.startsWith("* ")) {
+        const items: React.ReactNode[] = [];
+        while (i < lines.length && (lines[i].startsWith("- ") || lines[i].startsWith("* "))) {
+          items.push(
+            <li key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+              <span style={{ color: "var(--sam-accent)", flexShrink: 0, marginTop: 2 }}>•</span>
+              <span style={{ color: "var(--sam-text-primary)", lineHeight: 1.65 }}>{renderInline(lines[i].slice(2))}</span>
+            </li>
+          );
+          i++;
+        }
+        elements.push(<ul key={`ul-${i}`} style={{ listStyle: "none", padding: 0, margin: "6px 0" }}>{items}</ul>);
+        continue;
+      }
+
+      const numberedMatch = line.match(/^(\d+)\. (.*)$/);
+      if (numberedMatch) {
+        const items: React.ReactNode[] = [];
+        let n = 1;
+        while (i < lines.length && lines[i].match(/^(\d+)\. (.*)$/)) {
+          const m = lines[i].match(/^(\d+)\. (.*)$/)!;
+          items.push(
+            <li key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+              <span style={{ color: "var(--sam-accent)", flexShrink: 0, fontWeight: 600, minWidth: 16 }}>{n}.</span>
+              <span style={{ color: "var(--sam-text-primary)", lineHeight: 1.65 }}>{renderInline(m[2])}</span>
+            </li>
+          );
+          i++;
+          n++;
+        }
+        elements.push(<ol key={`ol-${i}`} style={{ listStyle: "none", padding: 0, margin: "6px 0" }}>{items}</ol>);
+        continue;
+      }
+
+      if (line.startsWith("> ")) {
+        elements.push(
+          <div key={i} style={{ borderLeft: "3px solid var(--sam-accent)", paddingLeft: 12, margin: "8px 0", color: "var(--sam-text-secondary)", fontStyle: "italic", fontSize: 13 }}>
+            {renderInline(line.slice(2))}
+          </div>
+        );
+        i++;
+        continue;
+      }
+
+      if (line.startsWith("---") || line.startsWith("***")) {
+        elements.push(<hr key={i} style={{ border: "none", borderTop: "1px solid var(--sam-border)", margin: "12px 0" }} />);
+        i++;
+        continue;
+      }
+
+      elements.push(<p key={i} style={{ margin: "3px 0", lineHeight: 1.7, color: "var(--sam-text-primary)" }}>{renderInline(line)}</p>);
+      i++;
+    }
+
+    return <>{elements}</>;
   };
 
   const streamingCursor = isStreaming ? (
