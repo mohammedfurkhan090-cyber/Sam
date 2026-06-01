@@ -1,26 +1,28 @@
 import { groq } from "./groq.js";
 const ROUTER_MODEL = "llama-3.3-70b-versatile";
 const ROUTER_SYSTEM_PROMPT = [
-    "You are the tool router for Sam, an AI thinking partner.",
-    "Your task: read one user message and pick the best tool.",
-    "Return ONLY valid JSON. No markdown. No code fences. No extra text.",
-    "JSON must match this exact shape:",
-    '{"tool":"unfold|search|code|speak|none","confidence":"high|medium|low","extractedParams":{"thought?":"string","mode?":"structure|poke|expand","text?":"string","query?":"string"},"reasoning":"string"}',
-    "Routing rules:",
-    "- unfold: user wants to think through, analyze, structure, challenge, or expand an idea, concept, or plan.",
-    "- code: user wants to write, debug, review, or explain code.",
-    "- search: user asks about current events, facts, or wants to look something up.",
-    '- speak: user says "read this", "say this", "read aloud", or similar.',
-    "- none: greetings, thank-yous, meta questions about Sam, or anything that does not fit above.",
-    'Important: "Sam" is the product/assistant name, not a human person.',
-    "Unfold mode rules:",
-    "- structure: default for organizing or clarifying a thought.",
-    "- poke: user requests pushback, devil's advocate, challenge, or stress-test.",
-    "- expand: user asks for new angles, broader context, or connections.",
-    "Extract only parameters that are clearly present in the user message.",
-    "Never invent values. If uncertain, omit the parameter.",
-    "confidence must reflect routing certainty.",
-    "reasoning must be exactly one sentence.",
+    "You are Sam's deterministic tool router. Classify exactly one user message into exactly one tool.",
+    "Return ONLY valid JSON. No markdown. No explanation outside JSON.",
+    "Schema:",
+    '{"tool":"unfold|search|code|speak|image|slides|rag|agent|none","confidence":"high|medium|low","extractedParams":{"thought?":"string","mode?":"structure|poke|expand","text?":"string","query?":"string"},"reasoning":"one short sentence"}',
+    "Tool rules:",
+    "- none: normal conversation, greetings, opinions, simple explanations, brainstorming, or meta questions about Sam.",
+    '- search: current facts, latest information, news, prices, rankings, release dates, laws, schedules, or explicit web lookup. If the user asks for "latest", "current", "today", or "now", choose search.',
+    "- code: writing, debugging, reviewing, explaining, refactoring, running, or designing code.",
+    '- rag: user asks about uploaded files, notes, documents, PDFs, saved memory, or "my file/document/notes".',
+    "- image: user asks to create, generate, draw, design, render, or visualize an image.",
+    "- slides: user asks to create a deck, slides, slideshow, PPT, or presentation.",
+    "- speak: user asks to read aloud, narrate, say, voice, or convert text to speech.",
+    "- unfold: user wants structured thinking, deep analysis, critique, expansion, planning, decision support, or stress-testing.",
+    '- agent: only for multi-step work requiring combined tools, such as "research X and make slides", "search and compare sources", "analyze my docs and create output", or "investigate then produce a deliverable".',
+    "Unfold mode:",
+    "- structure: organize, clarify, summarize, plan.",
+    "- poke: challenge, critique, devil's advocate, stress-test.",
+    "- expand: generate angles, possibilities, connections, alternatives.",
+    'Important: "Sam" is the assistant/product name, not a person.',
+    "Never invent extracted parameters.",
+    "If the request can be answered without a tool, choose none.",
+    "If unsure between agent and a single tool, choose the single tool.",
 ].join("\n");
 function pickJsonObject(text) {
     const start = text.indexOf("{");
@@ -31,7 +33,7 @@ function pickJsonObject(text) {
     return text.slice(start, end + 1);
 }
 function isToolName(value) {
-    return value === "unfold" || value === "search" || value === "code" || value === "speak" || value === "none";
+    return value === "unfold" || value === "search" || value === "code" || value === "speak" || value === "image" || value === "slides" || value === "rag" || value === "agent" || value === "none";
 }
 function isConfidence(value) {
     return value === "high" || value === "medium" || value === "low";
@@ -76,7 +78,7 @@ function normalizeDecision(parsed) {
         reasoning: obj.reasoning.trim(),
     };
 }
-export async function routeMessage(userMessage) {
+export async function routeMessage(userMessage, disabledTools) {
     const completion = await groq.chat.completions.create({
         model: ROUTER_MODEL,
         temperature: 0.1,
@@ -86,6 +88,16 @@ export async function routeMessage(userMessage) {
         ],
     });
     const raw = completion.choices[0]?.message?.content ?? "";
-    const parsed = JSON.parse(pickJsonObject(raw));
-    return normalizeDecision(parsed);
+    const cleaned = raw.replace(/```json|```/gi, "").trim();
+    try {
+        const parsed = JSON.parse(pickJsonObject(cleaned));
+        const decision = normalizeDecision(parsed);
+        if (disabledTools?.includes(decision.tool)) {
+            decision.tool = "none";
+        }
+        return decision;
+    }
+    catch {
+        return { tool: "none", confidence: "high", reasoning: "Fallback to none", extractedParams: {} };
+    }
 }

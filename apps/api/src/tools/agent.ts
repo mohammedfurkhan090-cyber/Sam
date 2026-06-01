@@ -25,6 +25,44 @@ const llm = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+const AGENT_REASONING_SYSTEM_PROMPT = [
+  "You are Sam's agent reasoning core. You receive context from tools such as Tavily search and document retrieval.",
+  "Your job:",
+  "- Understand the user's requested deliverable.",
+  "- Synthesize gathered context.",
+  "- Decide the correct final output type.",
+  "- If the output is image, make the synthesis a Stability AI-ready prompt.",
+  "- If the output is slides, make the synthesis a 2Slides-ready generation brief.",
+  "- Produce a useful result without inventing tool outputs.",
+  "Rules:",
+  "- Use web context for public/current facts.",
+  "- Use document context for user-specific/private facts.",
+  "- If context is weak, missing, or conflicting, say so.",
+  "- Do not invent URLs, sources, files, statistics, or generated artifacts.",
+  "- Do not expose internal planning or chain-of-thought.",
+  "- Be concise but complete.",
+  "Private quality loop:",
+  "1. Draft the synthesis.",
+  "2. Find unsupported claims and remove or qualify them.",
+  "3. Identify the strongest objection to the conclusion.",
+  "4. Address it if relevant.",
+  "5. Confirm the output tag matches the user's requested deliverable.",
+  "End with exactly one tag on its own line:",
+  "[OUTPUT:slides]",
+  "[OUTPUT:image]",
+  "[OUTPUT:code]",
+  "[OUTPUT:text]",
+  "Do not explain the tag.",
+].join("\n");
+
+const AGENT_CODE_SYSTEM_PROMPT = [
+  "You are Sam in senior software engineer mode.",
+  "Be practical, concise, and production-minded.",
+  "Use the gathered context only when it helps answer the user's coding request.",
+  "Provide clean code with correct language-tagged markdown fences, minimal useful comments, and brief verification steps.",
+  "Do not claim code was executed unless execution output is provided.",
+].join("\n");
+
 async function gatherContext(state: AgentState): Promise<Partial<AgentState>> {
   const results: string[] = [];
 
@@ -57,19 +95,8 @@ async function gatherContext(state: AgentState): Promise<Partial<AgentState>> {
 }
 
 async function reasonAndSynthesize(state: AgentState): Promise<Partial<AgentState>> {
-  const systemPrompt = [
-    "You are Sam's reasoning core. You have gathered context from search and documents.",
-    "Your job: synthesize the context into a clear answer for the user's request.",
-    "Also decide the best output format by outputting one of these tags on the very last line:",
-    "[OUTPUT:slides] - if the user asked for a presentation or deck",
-    "[OUTPUT:image] - if the user asked for an image or visual",
-    "[OUTPUT:code] - if the user asked for code, a script, or implementation",
-    "[OUTPUT:text] - for everything else",
-    "Do not explain your format choice. Just write your synthesis, then end with the tag.",
-  ].join("\n");
-
   const response = await llm.invoke([
-    new SystemMessage(systemPrompt),
+    new SystemMessage(AGENT_REASONING_SYSTEM_PROMPT),
     new HumanMessage(
       `User request: ${state.message}\n\nGathered context:\n${state.context}`,
     ),
@@ -86,8 +113,10 @@ async function reasonAndSynthesize(state: AgentState): Promise<Partial<AgentStat
 async function executeOutput(state: AgentState): Promise<Partial<AgentState>> {
   if (state.outputType === "image") {
     try {
-      const url = await generateImage(state.message);
-      return { result: url };
+      const image = await generateImage(state.reasoning || state.message);
+      return {
+        result: image.output.imageUrl ?? image.output.chat ?? "Image generation failed.",
+      };
     } catch {
       return { result: "Image generation failed." };
     }
@@ -95,7 +124,7 @@ async function executeOutput(state: AgentState): Promise<Partial<AgentState>> {
 
   if (state.outputType === "slides") {
     try {
-      const url = await generateSlides(state.message);
+      const url = await generateSlides(state.reasoning || state.message);
       return { result: url };
     } catch {
       return { result: "Slides generation failed." };
@@ -105,9 +134,7 @@ async function executeOutput(state: AgentState): Promise<Partial<AgentState>> {
   if (state.outputType === "code") {
     try {
       const response = await llm.invoke([
-        new SystemMessage(
-          "You are a senior software engineer. Be practical and concise. Provide clean code with brief explanation.",
-        ),
+        new SystemMessage(AGENT_CODE_SYSTEM_PROMPT),
         new HumanMessage(
           `Context:\n${state.reasoning}\n\nUser request: ${state.message}`,
         ),
@@ -120,7 +147,7 @@ async function executeOutput(state: AgentState): Promise<Partial<AgentState>> {
     }
   }
 
-  // text — result is already in reasoning
+  // text - result is already in reasoning
   return { result: state.reasoning };
 }
 

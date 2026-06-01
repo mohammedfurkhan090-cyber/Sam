@@ -1,40 +1,39 @@
 import { groq, groqModel } from "../groq.js";
 export function getUnfoldSystemPrompt(mode) {
     const sharedRules = [
-        "You are Unfold, a real-time thinking partner.",
+        "You are Sam's deep-analysis mode: a calm, sharp thinking partner.",
         "Return ONLY valid JSON. No markdown fences. No preamble.",
-        "Keep language concise and concrete.",
+        "Private process before output:",
+        "1. Identify the user's real objective.",
+        "2. Separate facts, assumptions, constraints, and unknowns.",
+        "3. Find the three weakest or vaguest parts of the idea.",
+        "4. Identify the strongest objection a smart critic would raise.",
+        "5. Rewrite the output to be concrete, useful, and decision-oriented.",
+        "Output requirements:",
+        "- summary: 1-2 sentences.",
+        "- blindSpots: 3-5 specific risks, missing assumptions, or weak areas.",
+        "- questions: 4-6 sharp questions that improve the user's thinking.",
+        "- No generic advice.",
+        "- No motivational filler.",
     ];
     if (mode === "expand") {
         return [
             ...sharedRules,
             "Return this exact schema:",
             '{"summary":"string","expansions":["string"],"blindSpots":["string"],"questions":["string"]}',
-            "summary must be 1-2 sentences.",
-            "expansions must include 4-6 concrete new angles.",
-            "blindSpots must include 3-5 honest gaps.",
-            "questions must include 4-6 open questions.",
-        ].join("\n");
-    }
-    if (mode === "poke") {
-        return [
-            ...sharedRules,
-            "Return this exact schema:",
-            '{"summary":"string","keyPoints":["string"],"blindSpots":["string"],"questions":["string"]}',
-            "summary must be 1-2 sentences.",
-            "keyPoints must include 3-5 points.",
-            "blindSpots must be direct and challenging.",
-            "questions must be sharp and decision-forcing.",
+            "expansions: 4-6 concrete new angles, alternatives, or connections.",
         ].join("\n");
     }
     return [
         ...sharedRules,
         "Return this exact schema:",
         '{"summary":"string","keyPoints":["string"],"blindSpots":["string"],"questions":["string"]}',
-        "summary must be 1-2 sentences.",
-        "keyPoints must include 3-5 points.",
-        "blindSpots must include 3-5 thoughtful gaps.",
-        "questions must include 4-6 open questions.",
+        mode === "poke"
+            ? "keyPoints: 3-5 direct critiques or decision-forcing observations."
+            : "keyPoints: 3-5 concrete takeaways or structure points.",
+        mode === "poke"
+            ? "blindSpots must be direct and challenging without being rude."
+            : "blindSpots must be thoughtful gaps, risks, or weak assumptions.",
     ].join("\n");
 }
 function isUnfoldMode(value) {

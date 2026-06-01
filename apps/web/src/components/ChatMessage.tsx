@@ -19,6 +19,51 @@ import {
 } from "lucide-react";
 import { useState, useRef } from "react";
 
+function ActionBtn({
+  onClick,
+  children,
+  activeColor,
+}: {
+  onClick?: () => void;
+  children: React.ReactNode;
+  activeColor?: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? "rgba(212,160,23,0.10)" : "rgba(255,255,255,0.04)",
+        border: hovered ? "1px solid rgba(212,160,23,0.30)" : "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: hovered ? "0 0 10px rgba(212,160,23,0.14)" : "none",
+        transition: "all 0.15s ease",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          padding: "6px 7px",
+          borderRadius: 7,
+          border: "none",
+          background: "transparent",
+          cursor: "pointer",
+          color: activeColor ?? (hovered ? "var(--sam-accent)" : "var(--sam-text-nav)"),
+          display: "flex",
+          transition: "color 0.15s",
+        }}
+      >
+        {children}
+      </button>
+    </div>
+  );
+}
+
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
@@ -55,24 +100,20 @@ export default function ChatMessage({
   const handleSpeak = async () => {
     const text = output?.chat || output?.summary || content || "";
     if (!text.trim()) return;
-
     if (speaking && audioRef.current && !paused) {
       audioRef.current.pause();
       setPaused(true);
       return;
     }
-
     if (paused && audioRef.current) {
       audioRef.current.play();
       setPaused(false);
       return;
     }
-
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
     }
-
     setSpeaking(true);
     setPaused(false);
     try {
@@ -122,31 +163,19 @@ export default function ChatMessage({
 
     while (i < lines.length) {
       const line = lines[i];
-
-      if (!line.trim()) {
-        elements.push(<div key={i} style={{ height: 8 }} />);
-        i++;
-        continue;
-      }
-
+      if (!line.trim()) { elements.push(<div key={i} style={{ height: 8 }} />); i++; continue; }
       if (line.startsWith("### ")) {
-        elements.push(<h3 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 13, fontWeight: 700, margin: "14px 0 6px", letterSpacing: "0.01em" }}>{renderInline(line.slice(4))}</h3>);
-        i++;
-        continue;
+        elements.push(<h3 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 13, fontWeight: 700, margin: "14px 0 6px" }}>{renderInline(line.slice(4))}</h3>);
+        i++; continue;
       }
-
       if (line.startsWith("## ")) {
         elements.push(<h2 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 15, fontWeight: 700, margin: "16px 0 8px", letterSpacing: "-0.01em" }}>{renderInline(line.slice(3))}</h2>);
-        i++;
-        continue;
+        i++; continue;
       }
-
       if (line.startsWith("# ")) {
         elements.push(<h1 key={i} style={{ color: "var(--sam-text-primary)", fontSize: 17, fontWeight: 700, margin: "18px 0 10px" }}>{renderInline(line.slice(2))}</h1>);
-        i++;
-        continue;
+        i++; continue;
       }
-
       if (line.startsWith("- ") || line.startsWith("* ")) {
         const items: React.ReactNode[] = [];
         while (i < lines.length && (lines[i].startsWith("- ") || lines[i].startsWith("* "))) {
@@ -161,7 +190,6 @@ export default function ChatMessage({
         elements.push(<ul key={`ul-${i}`} style={{ listStyle: "none", padding: 0, margin: "6px 0" }}>{items}</ul>);
         continue;
       }
-
       const numberedMatch = line.match(/^(\d+)\. (.*)$/);
       if (numberedMatch) {
         const items: React.ReactNode[] = [];
@@ -174,33 +202,26 @@ export default function ChatMessage({
               <span style={{ color: "var(--sam-text-primary)", lineHeight: 1.65 }}>{renderInline(m[2])}</span>
             </li>
           );
-          i++;
-          n++;
+          i++; n++;
         }
         elements.push(<ol key={`ol-${i}`} style={{ listStyle: "none", padding: 0, margin: "6px 0" }}>{items}</ol>);
         continue;
       }
-
       if (line.startsWith("> ")) {
         elements.push(
           <div key={i} style={{ borderLeft: "3px solid var(--sam-accent)", paddingLeft: 12, margin: "8px 0", color: "var(--sam-text-secondary)", fontStyle: "italic", fontSize: 13 }}>
             {renderInline(line.slice(2))}
           </div>
         );
-        i++;
-        continue;
+        i++; continue;
       }
-
       if (line.startsWith("---") || line.startsWith("***")) {
         elements.push(<hr key={i} style={{ border: "none", borderTop: "1px solid var(--sam-border)", margin: "12px 0" }} />);
-        i++;
-        continue;
+        i++; continue;
       }
-
       elements.push(<p key={i} style={{ margin: "3px 0", lineHeight: 1.7, color: "var(--sam-text-primary)" }}>{renderInline(line)}</p>);
       i++;
     }
-
     return <>{elements}</>;
   };
 
@@ -215,18 +236,16 @@ export default function ChatMessage({
   const renderAssistantContent = () => {
     if (output?.imageUrl) {
       return (
-        <div className="relative" style={{ maxWidth: 400 }}>
+        <div style={{ maxWidth: 400 }}>
           {!imgLoaded && !imgError && (
             <div style={{
               width: 400, height: 300, borderRadius: 16,
-              background: "var(--sam-surface)",
-              border: "1px solid var(--sam-border)",
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 12
+              background: "var(--sam-surface)", border: "1px solid var(--sam-border)",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
             }}>
               <motion.div
                 style={{ width: 32, height: 32, borderRadius: 99,
-                  background: "radial-gradient(circle at 35% 30%, #FEF9C3, #D4A017 40%, #92400E 75%, #1C1007)",
+                  background: "radial-gradient(circle at 34% 30%, #C89000 0%, #8B5800 40%, #3D1E00 75%, #150A00 100%)",
                   boxShadow: "0 0 12px 3px rgba(212,160,23,0.35)" }}
                 animate={{ scale: [1, 1.1, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
@@ -235,26 +254,13 @@ export default function ChatMessage({
             </div>
           )}
           {imgError && (
-            <div style={{
-              width: 400, height: 120, borderRadius: 16,
-              background: "var(--sam-surface)",
-              border: "1px solid var(--sam-border)",
-              display: "flex", alignItems: "center", justifyContent: "center"
-            }}>
+            <div style={{ width: 400, height: 120, borderRadius: 16, background: "var(--sam-surface)", border: "1px solid var(--sam-border)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ color: "var(--sam-text-muted)", fontSize: 13 }}>Image failed to load</span>
             </div>
           )}
-          <img
-            src={output.imageUrl}
-            alt="Generated"
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-            style={{
-              display: imgLoaded ? "block" : "none",
-              maxHeight: 400, borderRadius: 16,
-              objectFit: "cover",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
-            }}
+          <img src={output.imageUrl} alt="Generated"
+            onLoad={() => setImgLoaded(true)} onError={() => setImgError(true)}
+            style={{ display: imgLoaded ? "block" : "none", maxHeight: 400, borderRadius: 16, objectFit: "cover", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
           />
         </div>
       );
@@ -262,138 +268,97 @@ export default function ChatMessage({
 
     if (tool === "slides" && output?.slidesUrl) {
       return (
-        <div style={{
-          background: "var(--sam-card)",
-          border: "1px solid var(--sam-border)",
-          borderRadius: 16, padding: 16, maxWidth: 420
-        }}>
+        <div style={{ background: "var(--sam-card)", border: "1px solid var(--sam-border)", borderRadius: 16, padding: 16, maxWidth: 420 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 10,
-              background: "rgba(212,160,23,0.1)",
-              border: "1px solid rgba(212,160,23,0.2)",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-            }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(212,160,23,0.1)", border: "1px solid rgba(212,160,23,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Presentation style={{ width: 18, height: 18, color: "var(--sam-accent)" }} />
             </div>
             <div>
-              <div style={{ color: "white", fontSize: 13, fontWeight: 600 }}>Presentation ready</div>
-              <div style={{ color: "var(--sam-text-muted)", fontSize: 11, marginTop: 2 }}>PowerPoint file · Opens in Google Slides or Office</div>
+              <div style={{ color: "var(--sam-text-bright)", fontSize: 13, fontWeight: 600 }}>Presentation ready</div>
+              <div style={{ color: "var(--sam-text-label)", fontSize: 11, marginTop: 2 }}>PowerPoint file · Opens in Google Slides or Office</div>
             </div>
           </div>
-          <a
-            href={output.slidesUrl}
-            download
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              width: "100%", padding: "9px 0", borderRadius: 10,
-              background: "var(--sam-accent)", color: "#000",
-              fontSize: 13, fontWeight: 600, textDecoration: "none"
-            }}
-          >
-            Download PPTX
-            <ExternalLink style={{ width: 13, height: 13 }} />
+          <a href={output.slidesUrl} download style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "9px 0", borderRadius: 10, background: "var(--sam-accent)", color: "#000", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+            Download PPTX <ExternalLink style={{ width: 13, height: 13 }} />
           </a>
         </div>
       );
     }
 
-    if (
-      tool === "unfold" &&
-      (output?.summary || output?.keyPoints?.length || output?.blindSpots?.length || output?.questions?.length)
-    ) {
+    if (tool === "unfold" && (output?.summary || output?.keyPoints?.length || output?.blindSpots?.length || output?.questions?.length)) {
       return (
         <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-          {output?.summary ? (
+          {output?.summary && (
             <div className="rounded-2xl border border-[var(--sam-border)] bg-[var(--sam-card)] p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-[var(--sam-accent)]" />
                 <span className="text-[10px] uppercase tracking-wide text-[var(--sam-text-muted)]">Summary</span>
               </div>
-              <p className="text-sm leading-relaxed text-[var(--sam-text-primary)]">
-                {output.summary}
-                {streamingCursor}
-              </p>
+              <p className="text-sm leading-relaxed text-[var(--sam-text-primary)]">{output.summary}{streamingCursor}</p>
             </div>
-          ) : null}
-
-          {output?.keyPoints?.length ? (
+          )}
+          {output?.keyPoints?.length && (
             <div className="rounded-2xl border border-[var(--sam-border)] bg-[var(--sam-card)] p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Search className="h-3.5 w-3.5 text-[var(--sam-accent)]" />
                 <span className="text-[10px] uppercase tracking-wide text-[var(--sam-text-muted)]">Key Points</span>
               </div>
               <ul className="space-y-1 text-sm leading-relaxed text-[var(--sam-text-primary)]">
-                {output.keyPoints.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
+                {output.keyPoints.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
-          ) : null}
-
-          {output?.blindSpots?.length ? (
+          )}
+          {output?.blindSpots?.length && (
             <div className="rounded-2xl border border-[var(--sam-border)] bg-[var(--sam-card)] p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Brain className="h-3.5 w-3.5 text-[var(--sam-accent)]" />
                 <span className="text-[10px] uppercase tracking-wide text-[var(--sam-text-muted)]">Blind Spots</span>
               </div>
               <ul className="space-y-1 text-sm leading-relaxed text-[var(--sam-text-primary)]">
-                {output.blindSpots.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
+                {output.blindSpots.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
-          ) : null}
-
-          {output?.questions?.length ? (
+          )}
+          {output?.questions?.length && (
             <div className="rounded-2xl border border-[var(--sam-border)] bg-[var(--sam-card)] p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Zap className="h-3.5 w-3.5 text-[var(--sam-accent)]" />
                 <span className="text-[10px] uppercase tracking-wide text-[var(--sam-text-muted)]">Questions</span>
               </div>
               <ul className="space-y-1 text-sm leading-relaxed text-[var(--sam-text-primary)]">
-                {output.questions.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
+                {output.questions.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
-          ) : null}
+          )}
         </div>
       );
     }
 
     if (tool === "code" || output?.codeText) {
       const code = output?.codeText ?? output?.chat ?? content;
-
       return (
         <div className="relative max-w-2xl">
           <div className="flex items-center justify-between rounded-t-xl bg-[#1a1a2e] px-4 py-2">
             <span className="text-xs text-[var(--sam-text-muted)]">Code</span>
-            <button
-              type="button"
-              onClick={() => copyText(code)}
-              className="text-[var(--sam-text-muted)] transition-colors hover:text-[var(--sam-text-primary)]"
-            >
+            <button type="button" onClick={() => copyText(code)} className="text-[var(--sam-text-muted)] transition-colors hover:text-[var(--sam-text-primary)]">
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             </button>
           </div>
-          <pre className="sam-scrollbar max-h-80 overflow-x-auto rounded-b-xl bg-[#0d0d1a] p-4 text-sm leading-relaxed text-green-300">
-            {code}
-          </pre>
+          <pre className="sam-scrollbar max-h-80 overflow-x-auto rounded-b-xl bg-[#0d0d1a] p-4 text-sm leading-relaxed text-green-300">{code}</pre>
         </div>
       );
     }
 
     return (
-      <div
-        style={{
-          background: "var(--sam-card)",
-          border: "1px solid var(--sam-border)",
-          borderRadius: "16px 16px 16px 4px",
-          padding: "14px 18px",
-          maxWidth: 640,
-        }}
-      >
+      <div style={{
+        background: "var(--sam-card)",
+        border: "1px solid rgba(255,255,255,0.05)",
+        borderLeft: "2px solid rgba(212,160,23,0.22)",
+        borderRadius: "0 16px 16px 4px",
+        padding: "14px 18px 14px 16px",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.22), 0 0 0 1px rgba(255,255,255,0.03)",
+        maxWidth: 640,
+      }}>
         <div style={{ color: "var(--sam-text-primary)", fontSize: 14 }}>
           {renderMarkdown(output?.chat || output?.summary || content || "")}
           {isStreaming ? streamingCursor : null}
@@ -412,61 +377,68 @@ export default function ChatMessage({
     >
       {role === "user" ? (
         <div className="mb-2 flex justify-end">
-          <div
-            style={{
-              maxWidth: 480,
-              padding: "12px 16px",
-              borderRadius: "16px 16px 4px 16px",
-              background: "var(--sam-card)",
-              border: "1px solid var(--sam-border)",
-            }}
-          >
+          <div style={{
+            maxWidth: 480,
+            padding: "12px 16px",
+            borderRadius: "16px 16px 4px 16px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 2px 14px rgba(0,0,0,0.28)",
+          }}>
             <p style={{ color: "var(--sam-text-primary)", fontSize: 14, margin: 0 }}>{content}</p>
-            <p style={{ fontSize: 10, color: "var(--sam-text-muted)", marginTop: 6, textAlign: "right" }}>
+            <p style={{ fontSize: 10, color: "var(--sam-text-label)", marginTop: 6, textAlign: "right" }}>
               {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ✓✓
             </p>
           </div>
         </div>
       ) : (
         <div className="mb-4 flex items-start gap-3">
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              flexShrink: 0,
-              marginTop: 4,
-              background:
-                "radial-gradient(circle at 35% 30%, #FEF9C3, #D4A017 40%, #92400E 75%, #1C1007)",
-              boxShadow: "0 0 12px 3px rgba(212,160,23,0.35)",
-            }}
-          />
+          {/* Avatar orb */}
+          <div style={{
+            position: "relative",
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            flexShrink: 0,
+            marginTop: 4,
+            overflow: "hidden",
+            background: "radial-gradient(circle at 34% 30%, #C89000 0%, #8B5800 40%, #3D1E00 75%, #150A00 100%)",
+            boxShadow: "0 0 12px 3px rgba(212,160,23,0.22)",
+          }}>
+            {/* Specular on avatar */}
+            <div style={{
+              position: "absolute", width: 14, height: 10,
+              top: "12%", left: "16%", borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(255,255,255,0.70) 0%, transparent 70%)",
+              filter: "blur(1px)",
+            }} />
+            {/* Left eye */}
+            <div style={{
+              position: "absolute", left: 9, top: 13,
+              width: 4, height: 4, borderRadius: "50%",
+              background: "rgba(255,255,255,0.75)",
+              boxShadow: "0 0 3px rgba(255,255,255,0.80)",
+            }} />
+            {/* Right eye */}
+            <div style={{
+              position: "absolute", left: 19, top: 13,
+              width: 4, height: 4, borderRadius: "50%",
+              background: "rgba(255,255,255,0.75)",
+              boxShadow: "0 0 3px rgba(255,255,255,0.80)",
+            }} />
+          </div>
+
           <div className="min-w-0 flex-1">
             {renderAssistantContent()}
             <div className="mt-2 flex items-center gap-1">
-              <button type="button"
-                className="rounded-lg p-1.5 text-[var(--sam-text-muted)] transition-colors hover:bg-[var(--sam-surface)] hover:text-[var(--sam-text-secondary)]">
-                <ThumbsUp className="h-4 w-4" />
-              </button>
-              <button type="button"
-                className="rounded-lg p-1.5 text-[var(--sam-text-muted)] transition-colors hover:bg-[var(--sam-surface)] hover:text-[var(--sam-text-secondary)]">
-                <ThumbsDown className="h-4 w-4" />
-              </button>
-              <button type="button"
-                onClick={handleSpeak}
-                title={speaking && !paused ? "Pause" : paused ? "Resume" : "Listen"}
-                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--sam-surface)]"
-                style={{ color: speaking ? "var(--sam-accent)" : "var(--sam-text-muted)" }}>
-                {speaking && !paused
-                  ? <Pause className="h-4 w-4" />
-                  : paused
-                  ? <Play className="h-4 w-4" />
-                  : <Volume2 className="h-4 w-4" />}
-              </button>
-              <button type="button"
-                className="rounded-lg p-1.5 text-[var(--sam-text-muted)] transition-colors hover:bg-[var(--sam-surface)] hover:text-[var(--sam-text-secondary)]">
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
+              <ActionBtn><ThumbsUp style={{ width: 14, height: 14 }} /></ActionBtn>
+              <ActionBtn><ThumbsDown style={{ width: 14, height: 14 }} /></ActionBtn>
+              <ActionBtn onClick={handleSpeak} activeColor={speaking ? "var(--sam-accent)" : undefined}>
+                {speaking && !paused ? <Pause style={{ width: 14, height: 14 }} />
+                  : paused ? <Play style={{ width: 14, height: 14 }} />
+                  : <Volume2 style={{ width: 14, height: 14 }} />}
+              </ActionBtn>
+              <ActionBtn><MoreHorizontal style={{ width: 14, height: 14 }} /></ActionBtn>
             </div>
           </div>
         </div>
